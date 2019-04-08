@@ -85,9 +85,10 @@ method_dict_regression ={
 
 class AutomatedRegression():
     
-    def __init__(self,method_dict):
+    def __init__(self,method_dict,main_metric):
         self.method_dict = method_dict
         self.metric_list = method_dict['eval_metric']
+        self.main_metric = main_metric
         
     def pretty_print(self):
         '''Method to pprint some information
@@ -115,7 +116,7 @@ class AutomatedRegression():
         self.choosen_algo = choosen_algo
         param_grid = self.method_dict['space'][choosen_algo]
         
-        param_col = [key for key in param_grid.keys()] + [metrics.__name__ for metrics in self.metric_list]
+        param_col = [key for key in param_grid.keys()] + [metrics.__name__ for metrics in self.metric_list] + [self.main_metric.__name__ + '_train']
         
         lots_vals = list()
         print(choosen_algo)
@@ -132,20 +133,24 @@ class AutomatedRegression():
                 X_train,X_test = X.loc[train_idx,:],X.loc[test_idx,:]
                 y_train,y_test = y.loc[train_idx,:],y.loc[test_idx,:]
 
-                new_algo = method_dict_regression['algo'][choosen_algo](**params)
+                new_algo = self.method_dict['algo'][choosen_algo](**params)
 
                 new_algo.fit(X_train,np.ravel(y_train))
                 y_pred = new_algo.predict(X_test)
+                y_pred_train = new_algo.predict(X_train)
                 
                 evaluation_list = []
                 for evaluations in self.metric_list:
                     result = evaluations(y_test,y_pred)
                     evaluation_list.append(result)
+                evaluation_list.append(self.main_metric(y_train,y_pred_train))
                 matrix_metrics.append(evaluation_list)
+                
                 
             #Dataframe criado com os resultados das metricas em cada fold
             fold_dataframe = pd.DataFrame(matrix_metrics,
-                                          columns = [metrics.__name__ for metrics in self.metric_list])
+                                          columns = [metrics.__name__ for metrics in self.metric_list] +
+                                                     [self.main_metric.__name__ + '_train'])
 
             # Return list of results
             metrics_results = fold_dataframe.mean().tolist()
@@ -159,36 +164,43 @@ class AutomatedRegression():
         
         return self.result_dataframe
     
-    def reports(self,main_metric):
+    def reports(self):
         '''
         To run this method,it's necessary to pre-run fit_predict_tune.
         It displays the 5 Top Iterations in RandomSearch, display the describe about all runs and plot a
         histplot priorizing the main metric choosen by the user'''
-        display(self.result_dataframe.sort_values(by = main_metric).head(5))
+        
+        display(self.result_dataframe.sort_values(by = self.main_metric.__name__).head(5))
         self.desc_results = self.result_dataframe.describe()
         display(self.result_dataframe.describe())
         
-        print("The mean of the main metric is : {}".format(self.desc_results.loc['mean'][main_metric]))
-        print("The median of the main metric is : {}".format(self.desc_results.loc['50%'][main_metric]))
-        print("The standard deviation of the main metric is : {}".format(self.desc_results.loc['std'][main_metric]))
+        print("The mean of the main metric is : {}".
+              format(self.desc_results.loc['mean'][self.main_metric.__name__]))
+        print("The median of the main metric is : {}".
+              format(self.desc_results.loc['50%'][self.main_metric.__name__]))
+        print("The standard deviation of the main metric is : {}".
+              format(self.desc_results.loc['std'][self.main_metric.__name__]))
         print('Mean + 3*sigma : {}'.
-              format(self.desc_results.loc['mean'][main_metric] + 3*self.desc_results.loc['std'][main_metric]))
+              format(self.desc_results.loc['mean'][self.main_metric.__name__] + 
+                     3*self.desc_results.loc['std'][self.main_metric.__name__]))
         print('Mean - 3*sigma : {}'.
-              format(self.desc_results.loc['mean'][main_metric] - 3*self.desc_results.loc['std'][main_metric]))
+              format(self.desc_results.loc['mean'][self.main_metric.__name__] -
+                     3*self.desc_results.loc['std'][self.main_metric.__name__]))
         print("The amplitude of the main metric is : {}".
-              format(self.desc_results.loc['max'][main_metric] - self.desc_results.loc['min'][main_metric]))
+              format(self.desc_results.loc['max'][self.main_metric.__name__] -
+                     self.desc_results.loc['min'][self.main_metric.__name__]))
 
         plt.figure(figsize=(10,7))
         
         kwargs = dict(histtype='stepfilled', alpha=0.8, ec="k")
 
-        plt.hist(self.result_dataframe[str(main_metric)],
+        plt.hist(self.result_dataframe[str(self.main_metric.__name__)],
                  align='mid',
                  density = True,
                  stacked = True,
                  **kwargs)
         
-        plt.xlabel(main_metric)
+        plt.xlabel(self.main_metric.__name__)
         plt.ylabel('Probability')
         plt.title('Histogram - {}'.format(self.choosen_algo))
         plt.grid(True)
@@ -201,14 +213,15 @@ class AutomatedRegression():
         self.ITER_REPORT = iter_report
         self.NUM_SPLITS = number_splits
         
-    def auto_full_reports(self,main_metric):
+    def auto_full_reports(self):
         
-        for alg in method_dict_regression['algo'].keys():
-            temp_ar = AutomatedRegression(method_dict=method_dict_regression)
+        for alg in self.method_dict['algo'].keys():
+            temp_ar = AutomatedRegression(method_dict= self.method_dict,
+                                         main_metric = self.main_metric)
             
             temp_ar.fit_predict_tune(X = pd.DataFrame(self.X_EXOGENOUS),
                                      y = pd.DataFrame(self.Y_ENDOGENOUS),
                                      choosen_algo = alg,
                                      number_splits = self.NUM_SPLITS,
                                      iterations = self.ITER_REPORT)
-            temp_ar.reports(main_metric)
+            temp_ar.reports()
