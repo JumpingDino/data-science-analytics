@@ -6,7 +6,6 @@ sys.path.append('/home/saraiva/Documentos/GitHub/data-science-analytics/utils')
 from my_tools import custom_inspect_class
 from my_tools import unpack_list
 
-from sklearn.datasets import load_iris
 import numpy as np
 import pandas as pd
 import tqdm
@@ -86,6 +85,11 @@ method_dict_regression ={
 class AutomatedRegression():
     
     def __init__(self,method_dict,main_metric):
+        '''
+        When we instanciate this class,there are two main inputs:
+        method_dict is a clear specified type of dictionary
+        main_metric is the class and not a string
+        '''
         self.method_dict = method_dict
         self.metric_list = method_dict['eval_metric']
         self.main_metric = main_metric
@@ -207,14 +211,23 @@ class AutomatedRegression():
         plt.show()
     
     def info_full_reports(self, X, y, iter_report, number_splits):
-        
+        '''
+        In this function it's important to pass the inputs for the auto_full_reports 
+        Input :
+        X : Set of Independent Variables
+        y : Dependent Variables
+        iter_report : Number of times to run the RandomSearchCV for hyperparameter tuning
+        number_splits : Number of splits for CrossValidation
+        '''
         self.X_EXOGENOUS = X
         self.Y_ENDOGENOUS = y
         self.ITER_REPORT = iter_report
         self.NUM_SPLITS = number_splits
         
     def auto_full_reports(self):
-        
+        '''
+        Just run this method after inputing the parameters in info_full_reports
+        '''
         for alg in self.method_dict['algo'].keys():
             temp_ar = AutomatedRegression(method_dict= self.method_dict,
                                          main_metric = self.main_metric)
